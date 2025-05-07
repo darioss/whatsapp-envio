@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Envio WhatsApp</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue-toasted@1.1.28/dist/vue-toasted.min.js"></script>
+</head>
+
+<body class="bg-light d-flex align-items-center justify-content-center" style="height: 100vh;">
+
+    <div id="app" class="container">
+        <h1 class="text-center mb-4">Enviar mensagem no WhatsApp</h1>
+
+        <div id="qrcode-box" class="text-center mb-4">
+            <div v-if="isLoading">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">Carregando...</span>
+                </div>
+                <p class="mt-2">Aguardando conexão com o WhatsApp...</p>
+            </div>
+
+            <div v-if="qrCode && !isConnected && !isLoading">
+                <h3>Escaneie o QR Code abaixo:</h3>
+                <img :src="qrCode" alt="QR Code do WhatsApp" />
+            </div>
+
+            <div v-if="isConnected" class="alert alert-success d-inline-flex align-items-center justify-content-center"
+                role="alert">
+                <svg class="bi bi-check-circle-fill mr-2" width="24" height="24" fill="currentColor"
+                    viewBox="0 0 16 16">
+                    <path fill-rule="evenodd"
+                        d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM6.97 11.03a.75.75 0 0 0 1.08-.02l3.992-4.99a.75.75 0 1 0-1.138-.976L7.525 9.385 5.57 7.437a.75.75 0 0 0-1.088 1.034l2 2.5a.75.75 0 0 0 .488.226z" />
+                </svg>
+                WhatsApp conectado!
+            </div>
+        </div>
+
+        <form @submit.prevent="handleSubmit" class="border p-4 rounded bg-white shadow-sm">
+            <div class="form-group">
+                <label for="number">Número (ex: 5548999999999):</label>
+                <input v-model="form.number" type="text" class="form-control" id="number" required>
+            </div>
+
+            <div class="form-group">
+                <label for="message">Mensagem:</label>
+                <textarea v-model="form.message" class="form-control" id="message" required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="file">Anexo (opcional):</label>
+                <input type="file" class="form-control-file" id="file" @change="handleFileChange">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">Enviar</button>
+        </form>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+        Vue.use(Toasted);
+
+        new Vue({
+            el: '#app',
+            data: {
+                form: {
+                    number: '',
+                    message: '',
+                    file: null
+                },
+                qrCode: '',
+                isConnected: false,
+                isLoading: true
+            },
+            mounted() {
+                const socket = io();
+
+                socket.on('qr', (qrCodeBase64) => {
+                    console.log('[Front] QR Code recebido');  // Confirmação
+                    this.isLoading = false;
+                    this.isConnected = false;
+
+                    // Corrige se vier sem prefixo
+                    if (!qrCodeBase64.startsWith('data:image')) {
+                        this.qrCode = `data:image/png;base64,${qrCodeBase64}`;
+                    } else {
+                        this.qrCode = qrCodeBase64;
+                    }
+                });
+
+                socket.on('ready', () => {
+                    this.isConnected = true;
+                    this.qrCode = '';
+                    this.isLoading = false;  // Esconde o loader quando estiver conectado
+                });
+
+                socket.on('reconnecting', () => {
+                    this.isConnected = false;
+                    this.qrCode = '';
+                    this.isLoading = true;  // Mostra o loader novamente quando tentar reconectar
+                });
+            },
+            methods: {
+                handleSubmit() {
+                    const formData = new FormData();
+                    formData.append('number', this.form.number);
+                    formData.append('message', this.form.message);
+                    if (this.form.file) formData.append('file', this.form.file);
+
+                    fetch('/send', {
+                        method: 'POST',
+                        body: formData
+                    })
+                        .then(response => response.json())
+                        .then(result => {
+                            this.$toasted.show(result.status || result.error, {
+                                type: 'success',
+                                duration: 3000,
+                                position: 'top-center'
+                            });
+                            this.resetForm();
+                        })
+                        .catch(error => {
+                            this.$toasted.show('Erro ao enviar mensagem', {
+                                type: 'error',
+                                duration: 3000,
+                                position: 'top-center'
+                            });
+                        });
+                },
+                handleFileChange(event) {
+                    this.form.file = event.target.files[0];
+                },
+                resetForm() {
+                    this.form.number = '';
+                    this.form.message = '';
+                    this.form.file = null;
+                    document.getElementById('file').value = '';
+                }
+            }
+        });
+    </script>
+
+</body>
+
+</html>
