@@ -1,0 +1,16 @@
+{
+  "name": "whatsapp-envio",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-fileupload": "^1.4.0",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "socket.io": "^4.8.1",
+    "whatsapp-web.js": "^1.23.0"
+  }
+}
